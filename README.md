@@ -14,9 +14,9 @@ Running the container is easy. Fire up the container as usual. You can set which
 
 By default, the service listens on port 80, but you can override it with the `PORT` environment variable.
 
-By default, the service will retrieve ALL supported regions.
-If you want to use a specific region, you can manually set `REGION` environment variable to something like `us`.
-Valid regions can be found [here](https://i.mjh.nz/SamsungTVPlus/).
+By default, the service will retrieve ALL supported regions. 
+If you want to use a specific region, you can manually set `REGION` environment variable to something like `us`. 
+Valid regions can be found [here](https://i.mjh.nz/SamsungTVPlus/). 
 
 You can retrieve the playlist and EPG URLS via the status page.
 
@@ -24,7 +24,7 @@ You can retrieve the playlist and EPG URLS via the status page.
 
 ## Add Source to Channels
 
-Once you have your Stirr M3U and EPG XML available, you can use it to [custom channels](https://getchannels.com/docs/channels-dvr-server/how-to/custom-channels/) channels in the [Channels](https://getchannels.com) app.
+Once you have your the container running, you can use it to [custom channels](https://getchannels.com/docs/channels-dvr-server/how-to/custom-channels/) channels in the [Channels](https://getchannels.com) app.
 
 Add a new source in Channels DVR Server and choose `M3U Playlist`. Fill out the form using your new playlist and EPG URLs.
 
