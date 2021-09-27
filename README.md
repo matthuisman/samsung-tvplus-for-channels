@@ -12,7 +12,7 @@ Running the container is easy. Fire up the container as usual. You can set which
 
     docker run -d --restart unless-stopped --name samsung-tvplus-for-channels -p 8182:80 matthuisman/samsung-tvplus-for-channels
 
-By default, the service will retrieve data for ALL supported regions.  
+By default, the service will retrieve data for `all` supported regions.  
 If you want to use a specific region, you can manually set `REGION` environment variable to something like `us`.  
 Valid regions can be found [here](https://i.mjh.nz/SamsungTVPlus/).
 
@@ -22,9 +22,9 @@ You can retrieve the playlist and EPG URLS via the status page.
 
 ## Add Source to Channels
 
-Once you have your the container running, you can use it to [custom channels](https://getchannels.com/docs/channels-dvr-server/how-to/custom-channels/) channels in the [Channels](https://getchannels.com) app.
+Once you have your the container running, you can use it with [custom channels](https://getchannels.com/docs/channels-dvr-server/how-to/custom-channels/) in the [Channels](https://getchannels.com) app.
 
-Add a new source in Channels DVR Server and choose `M3U Playlist`. Fill out the form using your new playlist and EPG URLs.
+Add a new source in Channels DVR Server and choose `M3U Playlist`. Fill out the form using your new playlist and EPG URLs from above.
 
 ## License
 
