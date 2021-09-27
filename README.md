@@ -24,7 +24,8 @@ You can retrieve the playlist and EPG URLS via the status page.
 
 Once you have your the container running, you can use it with [custom channels](https://getchannels.com/docs/channels-dvr-server/how-to/custom-channels/) in the [Channels](https://getchannels.com) app.
 
-Add a new source in Channels DVR Server and choose `M3U Playlist`. Fill out the form using your new playlist and EPG URLs from above.
+Add a new source in Channels DVR Server and choose `M3U Playlist`.  
+Fill out the form using your new playlist and EPG URLs from above.
 
 ## License
 
