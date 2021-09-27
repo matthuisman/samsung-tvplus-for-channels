@@ -14,7 +14,10 @@ Running the container is easy. Fire up the container as usual. You can set which
 
 By default, the service will retrieve data for `all` supported regions.  
 If you want to use a specific region, you can manually set `REGION` environment variable to something like `us`.  
-Valid regions can be found [here](https://i.mjh.nz/SamsungTVPlus/).
+
+    docker run -d --restart unless-stopped --name samsung-tvplus-for-channels -p 8182:80 --env REGION=us matthuisman/samsung-tvplus-for-channels
+
+Valid regions can be found [here](https://i.mjh.nz/SamsungTVPlus/regions.json).
 
 You can retrieve the playlist and EPG URLS via the status page.
 
