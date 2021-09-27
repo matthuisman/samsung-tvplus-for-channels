@@ -12,11 +12,9 @@ Running the container is easy. Fire up the container as usual. You can set which
 
     docker run -d --restart unless-stopped --name samsung-tvplus-for-channels -p 8182:80 matthuisman/samsung-tvplus-for-channels
 
-By default, the service listens on port 80, but you can override it with the `PORT` environment variable.
-
-By default, the service will retrieve ALL supported regions. 
-If you want to use a specific region, you can manually set `REGION` environment variable to something like `us`. 
-Valid regions can be found [here](https://i.mjh.nz/SamsungTVPlus/). 
+By default, the service will retrieve data for ALL supported regions.  
+If you want to use a specific region, you can manually set `REGION` environment variable to something like `us`.  
+Valid regions can be found [here](https://i.mjh.nz/SamsungTVPlus/).
 
 You can retrieve the playlist and EPG URLS via the status page.
 

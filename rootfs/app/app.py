@@ -5,8 +5,8 @@ from socketserver import ThreadingMixIn
 
 import requests
 
-PORT = int(os.getenv('PORT', 80))
-REGION = os.getenv('REGION', 'sffd')
+PORT = 80
+REGION = os.getenv('REGION', 'all')
 CHUNKSIZE = int(os.getenv('CHUNK_SIZE', 64 * 1024))
 
 PLAYLIST_URL = '/playlist.m3u'
@@ -53,9 +53,9 @@ class Handler(BaseHTTPRequestHandler):
 class ThreadingSimpleServer(ThreadingMixIn, HTTPServer):
     pass
 
-def run(port=80):
-    server = ThreadingSimpleServer(('0.0.0.0', port), Handler)
+def run():
+    server = ThreadingSimpleServer(('0.0.0.0', PORT), Handler)
     server.serve_forever()
 
 if __name__ == '__main__':
-    run(PORT)
+    run()
