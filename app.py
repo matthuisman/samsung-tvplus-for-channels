@@ -37,6 +37,7 @@ class Handler(BaseHTTPRequestHandler):
     def _proxy(self, url):
         resp = requests.get(url)
         self.send_response(resp.status_code)
+        self.send_header('content-type', resp.headers.get('content-type'))
         self.end_headers()
         if resp.ok:
             for chunk in requests.get(url).iter_content(CHUNKSIZE):
