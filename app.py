@@ -40,7 +40,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('content-type', resp.headers.get('content-type'))
         self.end_headers()
         if resp.ok:
-            for chunk in requests.get(url).iter_content(CHUNKSIZE):
+            for chunk in resp.iter_content(CHUNKSIZE):
                 self.wfile.write(chunk)
         else:
             self.wfile.write(f'{url} returned error {resp.status_code}\nCheck your REGION is correct'.encode('utf8'))
