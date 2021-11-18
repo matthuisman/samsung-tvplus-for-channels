@@ -35,7 +35,7 @@ class Handler(BaseHTTPRequestHandler):
         }
 
         parsed = urlparse(self.path)
-        func = parsed.path.lstrip('/')
+        func = parsed.path.split('/')[1]
         self._params = dict(parse_qsl(parsed.query, keep_blank_values=True))
 
         if func not in routes:
@@ -65,7 +65,10 @@ class Handler(BaseHTTPRequestHandler):
 
         self.wfile.write(b'#EXTM3U\n')
         for key in sorted(channels.keys(), key=lambda x: channels[x]['chno'] if sort == 'chno' else channels[x]['name'].strip().lower()):
-            if (include and key not in include) or (exclude and key in exclude):
+            channel_id = f'samsung-{key}'
+
+            if (include and channel_id not in include) or (exclude and channel_id in exclude):
+                print(f"Skipping {key} due to include / exclude")
                 continue
 
             channel = channels[key]
@@ -82,7 +85,7 @@ class Handler(BaseHTTPRequestHandler):
             elif channel.get('chno') is not None:
                 chno = ' tvg-chno="{}"'.format(channel['chno'])
 
-            self.wfile.write(f'#EXTINF:-1 tvg-id="{key}" channel-id="samsung-{key}" tvg-logo="{logo}" group-title="{group}"{chno},{name}\n{url}\n'.encode('utf8'))
+            self.wfile.write(f'#EXTINF:-1 channel-id="samsung-{key}" tvg-id="{key}" tvg-logo="{logo}" group-title="{group}"{chno},{name}\n{url}\n'.encode('utf8'))
 
     def _epg(self):
         self._proxy(f'https://i.mjh.nz/SamsungTVPlus/{REGION}.xml')
