@@ -2,7 +2,6 @@
 import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
-
 from urllib.parse import urlparse, parse_qsl
 
 import requests
@@ -66,9 +65,8 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(b'#EXTM3U\n')
         for key in sorted(channels.keys(), key=lambda x: channels[x]['chno'] if sort == 'chno' else channels[x]['name'].strip().lower()):
             channel_id = f'samsung-{key}'
-
             if (include and channel_id not in include) or (exclude and channel_id in exclude):
-                print(f"Skipping {key} due to include / exclude")
+                print(f"Skipping {channel_id} due to include / exclude")
                 continue
 
             channel = channels[key]
@@ -85,7 +83,7 @@ class Handler(BaseHTTPRequestHandler):
             elif channel.get('chno') is not None:
                 chno = ' tvg-chno="{}"'.format(channel['chno'])
 
-            self.wfile.write(f'#EXTINF:-1 channel-id="samsung-{key}" tvg-id="{key}" tvg-logo="{logo}" group-title="{group}"{chno},{name}\n{url}\n'.encode('utf8'))
+            self.wfile.write(f'#EXTINF:-1 channel-id="{channel_id}" tvg-id="{key}" tvg-logo="{logo}" group-title="{group}"{chno},{name}\n{url}\n'.encode('utf8'))
 
     def _epg(self):
         self._proxy(f'https://i.mjh.nz/SamsungTVPlus/{REGION}.xml')
