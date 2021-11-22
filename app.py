@@ -62,6 +62,9 @@ class Handler(BaseHTTPRequestHandler):
         include = [x for x in self._params.get('include', '').split(',') if x]
         exclude = [x for x in self._params.get('exclude', '').split(',') if x]
 
+        self.send_response(200)
+        self.end_headers()
+
         self.wfile.write(b'#EXTM3U\n')
         for key in sorted(channels.keys(), key=lambda x: channels[x]['chno'] if sort == 'chno' else channels[x]['name'].strip().lower()):
             channel_id = f'samsung-{key}'
