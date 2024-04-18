@@ -67,16 +67,20 @@ class Handler(BaseHTTPRequestHandler):
 
         self.wfile.write(b'#EXTM3U\n')
         for key in sorted(channels.keys(), key=lambda x: channels[x]['chno'] if sort == 'chno' else channels[x]['name'].strip().lower()):
-            channel_id = f'samsung-{key}'
-            if (include and channel_id not in include) or (exclude and channel_id in exclude):
-                print(f"Skipping {channel_id} due to include / exclude")
-                continue
-
             channel = channels[key]
             logo = channel['logo']
             group = channel['group']
             name = channel['name']
             url = channel['url']
+            channel_id = f'samsung-{key}'
+
+            # skip widevine channels
+            if channel.get('license_url'):
+                continue
+
+            if (include and channel_id not in include) or (exclude and channel_id in exclude):
+                print(f"Skipping {channel_id} due to include / exclude")
+                continue
 
             chno = ''
             if start_chno is not None:
