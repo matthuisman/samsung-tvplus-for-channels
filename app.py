@@ -13,7 +13,7 @@ CHUNKSIZE = int(os.getenv('CHUNK_SIZE', 64 * 1024))
 PLAYLIST_URL = 'playlist.m3u'
 EPG_URL = 'epg.xml'
 STATUS_URL = ''
-APP_URL = 'https://i.mjh.nz/SamsungTVPlus/app.json'
+APP_URL = 'https://i.mjh.nz/SamsungTVPlus/.app.json'
 
 class Handler(BaseHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
