@@ -11,7 +11,7 @@ REGION = os.getenv('REGION', 'us').strip().lower()
 CHUNKSIZE = int(os.getenv('CHUNK_SIZE', 64 * 1024))
 
 PLAYLIST_URL = 'playlist.m3u'
-EPG_URL = 'epg.xml'
+EPG_URL = 'epg.xml.gz'
 STATUS_URL = ''
 APP_URL = 'https://i.mjh.nz/SamsungTVPlus/.app.json'
 
@@ -93,7 +93,7 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(f'#EXTINF:-1 channel-id="{channel_id}" tvg-id="{key}" tvg-logo="{logo}" group-title="{group}"{chno},{name}\n{url}\n'.encode('utf8'))
 
     def _epg(self):
-        self._proxy(f'https://i.mjh.nz/SamsungTVPlus/{REGION}.xml')
+        self._proxy(f'https://i.mjh.nz/SamsungTVPlus/{REGION}.xml.gz')
 
     def _proxy(self, url):
         resp = requests.get(url)
