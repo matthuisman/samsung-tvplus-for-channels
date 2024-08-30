@@ -1,4 +1,4 @@
-FROM python:3.8-slim
+FROM python:3.12-slim
 
 WORKDIR /usr/src/app
 
@@ -9,4 +9,4 @@ COPY . .
 
 EXPOSE 80/tcp
 
-CMD [ "python", "./app.py" ]
+CMD [ "python", "-u", "./app.py" ]
