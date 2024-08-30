@@ -110,10 +110,12 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(f'{url} returned error {resp.status_code}\nCheck your REGION is correct'.encode('utf8'))
 
     def _status(self):
+        all_channels = requests.get(APP_URL).json()['regions']
         self.send_response(200)
+        self.send_header("Content-type", "text/html; charset=utf-8")
         self.end_headers()
         host = self.headers.get('Host')
-        self.wfile.write(f'Playlist URL: http://{host}/{PLAYLIST_URL}\nEPG URL: http://{host}/{EPG_URL}'.encode('utf8'))
+        self.wfile.write(f'Playlist URL: <a href="http://{host}/{PLAYLIST_URL}">http://{host}/{PLAYLIST_URL}</a><br>EPG URL: <a href="http://{host}/{EPG_URL}">http://{host}/{EPG_URL}</a><br><br>Available Regions: {", ".join(all_channels.keys())}'.encode('utf8'))
 
 
 class ThreadingSimpleServer(ThreadingMixIn, HTTPServer):
