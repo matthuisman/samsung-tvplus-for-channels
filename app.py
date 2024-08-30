@@ -6,14 +6,16 @@ from urllib.parse import urlparse, parse_qsl
 
 import requests
 
+
 PORT = 80
-REGION = os.getenv('REGION', 'us').strip().lower()
+REGION_ALL = 'all'
 CHUNKSIZE = int(os.getenv('CHUNK_SIZE', 64 * 1024))
 
 PLAYLIST_URL = 'playlist.m3u'
 EPG_URL = 'epg.xml.gz'
 STATUS_URL = ''
 APP_URL = 'https://i.mjh.nz/SamsungTVPlus/.app.json'
+
 
 class Handler(BaseHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -48,14 +50,15 @@ class Handler(BaseHTTPRequestHandler):
             self._error(e)
 
     def _playlist(self):
-        regions = requests.get(APP_URL).json()['regions']
+        all_channels = requests.get(APP_URL).json()['regions']
+
+        regions = [region.strip().lower() for region in (self._params.get('region') or os.getenv('REGION', 'us')).split(',')]
+        regions = [region for region in all_channels.keys() if region in regions or REGION_ALL in regions]
 
         channels = {}
-        if REGION == 'all':
-            for key, region in regions.items():
-                channels.update(region.get('channels', {}))
-        else:
-            channels = regions[REGION].get('channels', {})
+        print(f"Including channels from regions: {regions}")
+        for region in regions:
+            channels.update(all_channels[region].get('channels', {}))
 
         start_chno = int(self._params['start_chno']) if 'start_chno' in self._params else None
         sort = self._params.get('sort', 'chno')
@@ -74,8 +77,8 @@ class Handler(BaseHTTPRequestHandler):
             url = channel['url']
             channel_id = f'samsung-{key}'
 
-            # skip widevine channels
-            if channel.get('license_url'):
+            # skip no urls or widevine channels
+            if not url or channel.get('license_url'):
                 continue
 
             if (include and channel_id not in include) or (exclude and channel_id in exclude):
@@ -93,7 +96,7 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(f'#EXTINF:-1 channel-id="{channel_id}" tvg-id="{key}" tvg-logo="{logo}" group-title="{group}"{chno},{name}\n{url}\n'.encode('utf8'))
 
     def _epg(self):
-        self._proxy(f'https://i.mjh.nz/SamsungTVPlus/{REGION}.xml.gz')
+        self._proxy(f'https://i.mjh.nz/SamsungTVPlus/{REGION_ALL}.xml.gz')
 
     def _proxy(self, url):
         resp = requests.get(url)
@@ -112,12 +115,15 @@ class Handler(BaseHTTPRequestHandler):
         host = self.headers.get('Host')
         self.wfile.write(f'Playlist URL: http://{host}/{PLAYLIST_URL}\nEPG URL: http://{host}/{EPG_URL}'.encode('utf8'))
 
+
 class ThreadingSimpleServer(ThreadingMixIn, HTTPServer):
     pass
+
 
 def run():
     server = ThreadingSimpleServer(('0.0.0.0', PORT), Handler)
     server.serve_forever()
+
 
 if __name__ == '__main__':
     run()
