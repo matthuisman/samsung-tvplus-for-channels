@@ -11,7 +11,7 @@ PORT = 80
 REGION_ALL = 'all'
 CHUNKSIZE = int(os.getenv('CHUNK_SIZE', 64 * 1024))
 
-PLAYLIST_URL = 'playlist.m3u'
+PLAYLIST_URL = 'playlist.m3u8'
 EPG_URL = 'epg.xml.gz'
 STATUS_URL = ''
 APP_URL = 'https://i.mjh.nz/SamsungTVPlus/.app.json'
@@ -52,7 +52,7 @@ class Handler(BaseHTTPRequestHandler):
     def _playlist(self):
         all_channels = requests.get(APP_URL).json()['regions']
 
-        regions = [region.strip().lower() for region in (self._params.get('region') or os.getenv('REGION', 'us')).split(',')]
+        regions = [region.strip().lower() for region in (self._params.get('regions') or os.getenv('REGIONS', 'us')).split(',')]
         regions = [region for region in all_channels.keys() if region in regions or REGION_ALL in regions]
 
         channels = {}
