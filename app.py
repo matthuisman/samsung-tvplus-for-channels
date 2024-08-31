@@ -103,11 +103,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(resp.status_code)
         self.send_header('content-type', resp.headers.get('content-type'))
         self.end_headers()
-        if resp.ok:
-            for chunk in resp.iter_content(CHUNKSIZE):
-                self.wfile.write(chunk)
-        else:
-            self.wfile.write(f'{url} returned error {resp.status_code}\nCheck your REGION is correct'.encode('utf8'))
+        for chunk in resp.iter_content(CHUNKSIZE):
+            self.wfile.write(chunk)
 
     def _status(self):
         all_channels = requests.get(APP_URL).json()['regions']
