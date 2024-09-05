@@ -112,7 +112,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-type", "text/html; charset=utf-8")
         self.end_headers()
         host = self.headers.get('Host')
-        self.wfile.write(f'Playlist URL: <a href="http://{host}/{PLAYLIST_URL}">http://{host}/{PLAYLIST_URL}</a><br>EPG URL: <a href="http://{host}/{EPG_URL}">http://{host}/{EPG_URL}</a> (Set to Refresh Every 1 Hour)<br><br>Available Regions: {", ".join(all_channels.keys())}'.encode('utf8'))
+        self.wfile.write(f'Playlist URL: <a href="http://{host}/{PLAYLIST_URL}">http://{host}/{PLAYLIST_URL}</a><br>EPG URL (Set to Refresh Every 1 Hour): <a href="http://{host}/{EPG_URL}">http://{host}/{EPG_URL}</a><br><br>Available Regions: {",".join(all_channels.keys())}'.encode('utf8'))
 
 
 class ThreadingSimpleServer(ThreadingMixIn, HTTPServer):
