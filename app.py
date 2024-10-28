@@ -27,6 +27,11 @@ class Handler(BaseHTTPRequestHandler):
         raise
 
     def do_GET(self):
+        # Serve the favicon.ico file
+        if self.path == '/favicon.ico':
+            self._serve_favicon()
+            return
+
         routes = {
             PLAYLIST_URL: self._playlist,
             EPG_URL: self._epg,
@@ -46,6 +51,18 @@ class Handler(BaseHTTPRequestHandler):
             routes[func]()
         except Exception as e:
             self._error(e)
+
+    def _serve_favicon(self):
+        # Serve the favicon file as an ICO file
+        try:
+            with open('favicon.ico', 'rb') as f:
+                self.send_response(200)
+                self.send_header('Content-Type', 'image/x-icon')
+                self.end_headers()
+                self.wfile.write(f.read())
+        except FileNotFoundError:
+            self.send_response(404)
+            self.end_headers()
 
     def _playlist(self):
         response = requests.get(APP_URL)
@@ -150,7 +167,7 @@ class Handler(BaseHTTPRequestHandler):
         # Normalize region names in the data for consistency
         all_channels = {region.lower(): data for region, data in all_channels.items()}
         
-        # Generate HTML content
+        # Generate HTML content with the favicon link
         self.send_response(200)
         self.send_header("Content-type", "text/html; charset=utf-8")
         self.end_headers()
@@ -158,19 +175,28 @@ class Handler(BaseHTTPRequestHandler):
         host = self.headers.get('Host')
         self.wfile.write(f'''
             <html>
-            <head><title>Status</title></head>
+            <head>
+                <title>Server Status - Samung TV Plus for Channels</title>
+                <link rel="icon" href="/favicon.ico" type="image/x-icon">
+            </head>
             <body>
                 <h1>Server Status</h1>
                 <p>Playlist URL: <a href="http://{host}/{PLAYLIST_URL}">http://{host}/{PLAYLIST_URL}</a></p>
-                <p>EPG URL (Set to Refresh Every 1 Hour): <a href="http://{host}/{EPG_URL}">http://{host}/{EPG_URL}</a></p>
-                <p>Available Regions:</p>
-                <p>{", ".join(all_channels.keys())}</p>
-                <p>Available Group Titles by Region:</p>
+                <p>EPG URL (Set to refresh every 1 hour): <a href="http://{host}/{EPG_URL}">http://{host}/{EPG_URL}</a></p>
+                <p>Available regions:</p>
+                <ul>
         '''.encode('utf8'))
 
-        # Display regions and their group titles
+        # Display each region as a clickable link
+        for region_name in all_channels.keys():
+            encoded_region = quote(region_name)
+            self.wfile.write(f'<li><a href="http://{host}/{PLAYLIST_URL}?region={encoded_region}">{region_name}</a></li>'.encode('utf8'))
+
+        self.wfile.write(b'</ul><p>Available group titles by region:</p>')
+
+        # Display regions and their group titles with links
         for region_name, region_data in all_channels.items():
-            self.wfile.write(f'<p>Region: {region_name.capitalize()}</p><ul>'.encode('utf8'))
+            self.wfile.write(f'<p>Region: {region_name}</p><ul>'.encode('utf8'))
             group_names = set(channel.get('group', 'Unknown') for channel in region_data.get('channels', {}).values())
             
             for group in sorted(group_names):
