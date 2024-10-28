@@ -2,10 +2,8 @@
 import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
-from urllib.parse import urlparse, parse_qsl
-
+from urllib.parse import urlparse, parse_qsl, quote, unquote
 import requests
-
 
 PORT = 80
 REGION_ALL = 'all'
@@ -50,16 +48,41 @@ class Handler(BaseHTTPRequestHandler):
             self._error(e)
 
     def _playlist(self):
-        all_channels = requests.get(APP_URL).json()['regions']
+        response = requests.get(APP_URL)
+        all_channels_data = response.json()
+        
+        if 'regions' not in all_channels_data:
+            self._error("Unable to retrieve regions data.")
+            return
+            
+        all_channels = all_channels_data['regions']
 
-        regions = [region.strip().lower() for region in (self._params.get('regions') or os.getenv('REGIONS', 'us')).split(',')]
-        regions = [region for region in all_channels.keys() if region in regions or REGION_ALL in regions]
+        # Normalize region names in the data for case-insensitive matching
+        all_channels = {region.lower(): data for region, data in all_channels.items()}
+
+        # Retrieve region and group filters
+        region_filter = self._params.get('region', REGION_ALL).strip().lower()
+        if region_filter == REGION_ALL:
+            regions = list(all_channels.keys())
+        elif region_filter in all_channels:
+            regions = [region_filter]
+        else:
+            self._error(f"Region '{region_filter}' not found.")
+            return
+
+        group_filter = self._params.get('group')
+        if group_filter:
+            group_filter = unquote(group_filter).lower()
 
         channels = {}
         print(f"Including channels from regions: {regions}")
         for region in regions:
-            channels.update(all_channels[region].get('channels', {}))
+            if region in all_channels:
+                channels.update(all_channels[region].get('channels', {}))
+            else:
+                print(f"Warning: Region '{region}' not found in data")
 
+        # Retrieve additional filter parameters
         start_chno = int(self._params['start_chno']) if 'start_chno' in self._params else None
         sort = self._params.get('sort', 'chno')
         include = [x for x in self._params.get('include', '').split(',') if x]
@@ -77,12 +100,18 @@ class Handler(BaseHTTPRequestHandler):
             url = channel['url']
             channel_id = f'samsung-{key}'
 
-            # skip no urls or widevine channels
+            # Skip channels with no URL or channels that require a license
             if not url or channel.get('license_url'):
                 continue
 
+            # Apply include/exclude filters
             if (include and channel_id not in include) or (exclude and channel_id in exclude):
                 print(f"Skipping {channel_id} due to include / exclude")
+                continue
+
+            # Apply group filter
+            if group_filter and group_filter != group.lower():
+                print(f"Skipping {channel_id} due to group filter")
                 continue
 
             chno = ''
@@ -93,6 +122,7 @@ class Handler(BaseHTTPRequestHandler):
             elif channel.get('chno') is not None:
                 chno = ' tvg-chno="{}"'.format(channel['chno'])
 
+            # Write channel information
             self.wfile.write(f'#EXTINF:-1 channel-id="{channel_id}" tvg-id="{key}" tvg-logo="{logo}" group-title="{group}"{chno},{name}\n{url}\n'.encode('utf8'))
 
     def _epg(self):
@@ -107,12 +137,54 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(chunk)
 
     def _status(self):
-        all_channels = requests.get(APP_URL).json()['regions']
+        # Fetch all channels data
+        response = requests.get(APP_URL)
+        all_channels_data = response.json()
+        
+        if 'regions' not in all_channels_data:
+            self._error("Unable to retrieve regions data.")
+            return
+            
+        all_channels = all_channels_data['regions']
+        
+        # Normalize region names in the data for consistency
+        all_channels = {region.lower(): data for region, data in all_channels.items()}
+        
+        # Generate HTML content
         self.send_response(200)
         self.send_header("Content-type", "text/html; charset=utf-8")
         self.end_headers()
+        
         host = self.headers.get('Host')
-        self.wfile.write(f'Playlist URL: <a href="http://{host}/{PLAYLIST_URL}">http://{host}/{PLAYLIST_URL}</a><br>EPG URL (Set to Refresh Every 1 Hour): <a href="http://{host}/{EPG_URL}">http://{host}/{EPG_URL}</a><br><br>Available Regions: {",".join(all_channels.keys())}'.encode('utf8'))
+        self.wfile.write(f'''
+            <html>
+            <head><title>Status</title></head>
+            <body>
+                <h1>Server Status</h1>
+                <p>Playlist URL: <a href="http://{host}/{PLAYLIST_URL}">http://{host}/{PLAYLIST_URL}</a></p>
+                <p>EPG URL (Set to Refresh Every 1 Hour): <a href="http://{host}/{EPG_URL}">http://{host}/{EPG_URL}</a></p>
+                <p>Available Regions:</p>
+                <p>{", ".join(all_channels.keys())}</p>
+                <p>Available Group Titles by Region:</p>
+        '''.encode('utf8'))
+
+        # Display regions and their group titles
+        for region_name, region_data in all_channels.items():
+            self.wfile.write(f'<p>Region: {region_name.capitalize()}</p><ul>'.encode('utf8'))
+            group_names = set(channel.get('group', 'Unknown') for channel in region_data.get('channels', {}).values())
+            
+            for group in sorted(group_names):
+                encoded_region = quote(region_name)
+                encoded_group = quote(group)
+                self.wfile.write(f'<li><a href="http://{host}/{PLAYLIST_URL}?region={encoded_region}&group={encoded_group}">{group}</a></li>'.encode('utf8'))
+            
+            self.wfile.write(b'</ul>')
+
+        # Close the HTML tags
+        self.wfile.write(b'''
+            </body>
+            </html>
+        ''')
 
 
 class ThreadingSimpleServer(ThreadingMixIn, HTTPServer):
