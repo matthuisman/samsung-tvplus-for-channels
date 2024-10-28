@@ -176,11 +176,11 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(f'''
             <html>
             <head>
-                <title>Server Status - Samung TV Plus for Channels</title>
+                <title>Server Status - Samsung TV Plus for Channels</title>
                 <link rel="icon" href="/favicon.ico" type="image/x-icon">
             </head>
             <body>
-                <h1>Server Status</h1>
+                <h1>Server Status - Samsung TV Plus for Channels</h1>
                 <p>Playlist URL: <a href="http://{host}/{PLAYLIST_URL}">http://{host}/{PLAYLIST_URL}</a></p>
                 <p>EPG URL (Set to refresh every 1 hour): <a href="http://{host}/{EPG_URL}">http://{host}/{EPG_URL}</a></p>
                 <p>Available regions:</p>
