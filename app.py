@@ -73,13 +73,21 @@ class Handler(BaseHTTPRequestHandler):
             return
             
         all_channels = all_channels_data['regions']
-
-        # Normalize region names in the data for case-insensitive matching
+        
+        # Normalize region names for case-insensitive matching
         all_channels = {region.lower(): data for region, data in all_channels.items()}
 
-        # Retrieve region and group filters
-        region_filter = self._params.get('region', REGION_ALL).strip().lower()
-        if region_filter == REGION_ALL:
+        # Retrieve region filter from URL or fallback to environment variable
+        region_filter = self._params.get('region', os.getenv('REGIONS', 'us')).strip().lower()
+        regions = []
+        
+        # Handle comma-separated list of regions
+        if ',' in region_filter:
+            regions = [region.strip() for region in region_filter.split(',') if region.strip() in all_channels]
+            if not regions:
+                self._error(f"Error: None of the specified regions found: '{region_filter}'")
+                return
+        elif region_filter == REGION_ALL:
             regions = list(all_channels.keys())
         elif region_filter in all_channels:
             regions = [region_filter]
