@@ -97,12 +97,12 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(f'#EXTINF:-1 channel-id="{channel_id}" tvg-id="{key}" tvg-logo="{logo}" group-title="{group}"{chno},{name}\n{url}\n'.encode('utf8'))
 
     def _epg(self):
-        self._proxy(f'https://i.mjh.nz/SamsungTVPlus/{REGION_ALL}.xml.gz')
+        self._proxy(f'https://i.mjh.nz/SamsungTVPlus/{REGION_ALL}.xml.gz', content_type='application/gzip')
 
-    def _proxy(self, url):
+    def _proxy(self, url, content_type=None):
         resp = requests.get(url)
         self.send_response(resp.status_code)
-        self.send_header('content-type', 'application/gzip')
+        self.send_header('content-type', content_type or resp.headers.get('content-type'))
         self.end_headers()
         for chunk in resp.iter_content(CHUNKSIZE):
             self.wfile.write(chunk)
