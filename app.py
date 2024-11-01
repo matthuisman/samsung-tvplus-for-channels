@@ -166,22 +166,17 @@ class Handler(BaseHTTPRequestHandler):
         '''.encode('utf8'))
 
         # Display regions and their group titles with links
-        for region_name, region_data in all_channels.items():
-            self.wfile.write(f'<h3><a href="http://{host}/{PLAYLIST_URL}?regions={quote(region_name)}">{region_name}</a></h3><ul>'.encode('utf8'))
-            group_names = set(channel.get('group', 'Unknown') for channel in region_data.get('channels', {}).values())
-            
-            for group in sorted(group_names):
-                encoded_region = quote(region_name)
+        for region, region_data in all_channels.items():
+            encoded_region = quote(region)
+            self.wfile.write(f'<h3><a href="http://{host}/{PLAYLIST_URL}?regions={encoded_region}">{region_data['name']}</a> ({region})</h3><ul>'.encode('utf8'))
+
+            group_names = set(channel.get('group', None) for channel in region_data.get('channels', {}).values())
+            for group in sorted(name for name in group_names if name):
                 encoded_group = quote(group)
                 self.wfile.write(f'<li><a href="http://{host}/{PLAYLIST_URL}?regions={encoded_region}&groups={encoded_group}">{group}</a></li>'.encode('utf8'))
-            
             self.wfile.write(b'</ul>')
 
-        # Close the HTML tags
-        self.wfile.write(b'''
-            </body>
-            </html>
-        ''')
+        self.wfile.write(b'</body></html>')
 
 
 class ThreadingSimpleServer(ThreadingMixIn, HTTPServer):
