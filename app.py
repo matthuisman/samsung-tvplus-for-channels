@@ -66,6 +66,7 @@ class Handler(BaseHTTPRequestHandler):
         exclude = [x for x in self._params.get('exclude', '').split(',') if x]
 
         self.send_response(200)
+        self.send_header('content-type', 'vnd.apple.mpegurl')
         self.end_headers()
 
         self.wfile.write(b'#EXTM3U\n')
@@ -101,7 +102,7 @@ class Handler(BaseHTTPRequestHandler):
     def _proxy(self, url):
         resp = requests.get(url)
         self.send_response(resp.status_code)
-        self.send_header('content-type', resp.headers.get('content-type'))
+        self.send_header('content-type', 'application/gzip')
         self.end_headers()
         for chunk in resp.iter_content(CHUNKSIZE):
             self.wfile.write(chunk)
