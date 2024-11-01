@@ -65,49 +65,14 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
 
     def _playlist(self):
-        response = requests.get(APP_URL)
-        all_channels_data = response.json()
-        
-        if 'regions' not in all_channels_data:
-            self._error("Unable to retrieve regions data.")
-            return
-            
-        all_channels = all_channels_data['regions']
-        
-        # Normalize region names for case-insensitive matching
-        all_channels = {region.lower(): data for region, data in all_channels.items()}
+        all_channels = requests.get(APP_URL).json()['regions']
 
-        # Retrieve region filter from URL or fallback to environment variable
-        region_filter = self._params.get('region', os.getenv('REGIONS', 'us')).strip().lower()
-        regions = []
-        
-        # Handle comma-separated list of regions
-        if ',' in region_filter:
-            regions = [region.strip() for region in region_filter.split(',') if region.strip() in all_channels]
-            if not regions:
-                self._error(f"Error: None of the specified regions found: '{region_filter}'")
-                return
-        elif region_filter == REGION_ALL:
-            regions = list(all_channels.keys())
-        elif region_filter in all_channels:
-            regions = [region_filter]
-        else:
-            self._error(f"Region '{region_filter}' not found.")
-            return
+        # Retrieve filters from URL or fallback to environment variables
+        regions = [region.strip().lower() for region in (self._params.get('regions') or os.getenv('REGIONS', REGION_ALL)).split(',')]
+        regions = [region for region in all_channels.keys() if region.lower() in regions or REGION_ALL in regions]
+        groups = [unquote(group).lower() for group in (self._params.get('groups') or os.getenv('GROUPS', '')).split(',')]
+        groups = [group for group in groups if group]
 
-        group_filter = self._params.get('group')
-        if group_filter:
-            group_filter = unquote(group_filter).lower()
-
-        channels = {}
-        print(f"Including channels from regions: {regions}")
-        for region in regions:
-            if region in all_channels:
-                channels.update(all_channels[region].get('channels', {}))
-            else:
-                print(f"Warning: Region '{region}' not found in data")
-
-        # Retrieve additional filter parameters
         start_chno = int(self._params['start_chno']) if 'start_chno' in self._params else None
         sort = self._params.get('sort', 'chno')
         include = [x for x in self._params.get('include', '').split(',') if x]
@@ -116,6 +81,11 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header('content-type', 'vnd.apple.mpegurl')
         self.end_headers()
+
+        channels = {}
+        print(f"Including channels from regions: {regions}")
+        for region in regions:
+            channels.update(all_channels[region].get('channels', {}))
 
         self.wfile.write(b'#EXTM3U\n')
         for key in sorted(channels.keys(), key=lambda x: channels[x]['chno'] if sort == 'chno' else channels[x]['name'].strip().lower()):
@@ -136,7 +106,7 @@ class Handler(BaseHTTPRequestHandler):
                 continue
 
             # Apply group filter
-            if group_filter and group_filter != group.lower():
+            if groups and group.lower() not in groups:
                 print(f"Skipping {channel_id} due to group filter")
                 continue
 
@@ -185,33 +155,25 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(f'''
             <html>
             <head>
-                <title>Server Status - Samsung TV Plus for Channels</title>
+                <title>Samsung TV Plus for Channels</title>
                 <link rel="icon" href="/favicon.ico" type="image/x-icon">
             </head>
             <body>
-                <h1>Server Status - Samsung TV Plus for Channels</h1>
-                <p>Playlist URL: <a href="http://{host}/{PLAYLIST_URL}">http://{host}/{PLAYLIST_URL}</a></p>
-                <p>EPG URL (Set to refresh every 1 hour): <a href="http://{host}/{EPG_URL}">http://{host}/{EPG_URL}</a></p>
-                <p>Available regions:</p>
-                <ul>
+                <h1>Samsung TV Plus for Channels</h1>
+                <p>Playlist URL: <b><a href="http://{host}/{PLAYLIST_URL}">http://{host}/{PLAYLIST_URL}</a></b></p>
+                <p>EPG URL (Set to refresh every 1 hour): <b><a href="http://{host}/{EPG_URL}">http://{host}/{EPG_URL}</a></b></p>
+                <h2>Available regions &amp; groups</h2>
         '''.encode('utf8'))
-
-        # Display each region as a clickable link
-        for region_name in all_channels.keys():
-            encoded_region = quote(region_name)
-            self.wfile.write(f'<li><a href="http://{host}/{PLAYLIST_URL}?region={encoded_region}">{region_name}</a></li>'.encode('utf8'))
-
-        self.wfile.write(b'</ul><p>Available group titles by region:</p>')
 
         # Display regions and their group titles with links
         for region_name, region_data in all_channels.items():
-            self.wfile.write(f'<p>Region: {region_name}</p><ul>'.encode('utf8'))
+            self.wfile.write(f'<h3><a href="http://{host}/{PLAYLIST_URL}?regions={quote(region_name)}">{region_name}</a></h3><ul>'.encode('utf8'))
             group_names = set(channel.get('group', 'Unknown') for channel in region_data.get('channels', {}).values())
             
             for group in sorted(group_names):
                 encoded_region = quote(region_name)
                 encoded_group = quote(group)
-                self.wfile.write(f'<li><a href="http://{host}/{PLAYLIST_URL}?region={encoded_region}&group={encoded_group}">{group}</a></li>'.encode('utf8'))
+                self.wfile.write(f'<li><a href="http://{host}/{PLAYLIST_URL}?regions={encoded_region}&groups={encoded_group}">{group}</a></li>'.encode('utf8'))
             
             self.wfile.write(b'</ul>')
 
