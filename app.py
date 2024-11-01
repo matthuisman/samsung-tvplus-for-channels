@@ -133,24 +133,13 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(chunk)
 
     def _status(self):
-        # Fetch all channels data
-        response = requests.get(APP_URL)
-        all_channels_data = response.json()
-        
-        if 'regions' not in all_channels_data:
-            self._error("Unable to retrieve regions data.")
-            return
-            
-        all_channels = all_channels_data['regions']
-        
-        # Normalize region names in the data for consistency
-        all_channels = {region.lower(): data for region, data in all_channels.items()}
-        
+        all_channels = requests.get(APP_URL).json()['regions']
+
         # Generate HTML content with the favicon link
         self.send_response(200)
         self.send_header("Content-type", "text/html; charset=utf-8")
         self.end_headers()
-        
+
         host = self.headers.get('Host')
         self.wfile.write(f'''
             <html>
