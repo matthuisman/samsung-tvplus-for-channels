@@ -9,12 +9,13 @@ from io import BytesIO
 
 PORT = 80
 REGION_ALL = 'all'
-CHUNKSIZE = int(os.getenv('CHUNK_SIZE', 64 * 1024))
 
-PLAYLIST_URL = 'playlist.m3u8'
-EPG_URL = 'epg.xml'
-STATUS_URL = ''
-APP_URL = 'https://i.mjh.nz/SamsungTVPlus/.app.json'
+PLAYLIST_PATH = 'playlist.m3u8'
+EPG_PATH = 'epg.xml'
+STATUS_PATH = ''
+APP_URL = 'https://i.mjh.nz/SamsungTVPlus/.channels.json'
+EPG_URL = f'https://i.mjh.nz/SamsungTVPlus/{REGION_ALL}.xml.gz'
+PLAYBACK_URL = 'https://jmp2.uk/sam-{id}.m3u8'
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -35,9 +36,9 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         routes = {
-            PLAYLIST_URL: self._playlist,
-            EPG_URL: self._epg,
-            STATUS_URL: self._status,
+            PLAYLIST_PATH: self._playlist,
+            EPG_PATH: self._epg,
+            STATUS_PATH: self._status,
         }
 
         parsed = urlparse(self.path)
@@ -95,11 +96,11 @@ class Handler(BaseHTTPRequestHandler):
             logo = channel['logo']
             group = channel['group']
             name = channel['name']
-            url = channel['url']
+            url = PLAYBACK_URL.format(id=key)
             channel_id = f'samsung-{key}'
 
-            # Skip channels with no URL or channels that require a license
-            if not url or channel.get('license_url'):
+            # Skip channels that require a license
+            if channel.get('license_url'):
                 continue
 
             # Apply include/exclude filters
@@ -125,29 +126,19 @@ class Handler(BaseHTTPRequestHandler):
 
     def _epg(self):
         # Download the .gz EPG file
-        resp = requests.get(f'https://i.mjh.nz/SamsungTVPlus/{REGION_ALL}.xml.gz')
+        with requests.get(EPG_URL, stream=True) as resp:
+            resp.raise_for_status()
 
-        if resp.status_code != 200:
-            self._error("Failed to retrieve EPG file.")
-            return
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/xml')
+            self.end_headers()
 
-        # Decompress the .gz content
-        with gzip.GzipFile(fileobj=BytesIO(resp.content)) as gz:
-            xml_content = gz.read()
-
-        # Serve the decompressed XML content
-        self.send_response(200)
-        self.send_header('Content-Type', 'application/xml')
-        self.end_headers()
-        self.wfile.write(xml_content)
-
-    def _proxy(self, url, content_type=None):
-        resp = requests.get(url)
-        self.send_response(resp.status_code)
-        self.send_header('content-type', content_type or resp.headers.get('content-type'))
-        self.end_headers()
-        for chunk in resp.iter_content(CHUNKSIZE):
-            self.wfile.write(chunk)
+            # Decompress the .gz content
+            with gzip.GzipFile(fileobj=BytesIO(resp.content)) as gz:
+                chunk = gz.read(1024)
+                while chunk:
+                    self.wfile.write(chunk)
+                    chunk = gz.read(1024)
 
     def _status(self):
         all_channels = requests.get(APP_URL).json()['regions']
@@ -166,20 +157,20 @@ class Handler(BaseHTTPRequestHandler):
             </head>
             <body>
                 <h1>Samsung TV Plus for Channels</h1>
-                <p>Playlist URL: <b><a href="http://{host}/{PLAYLIST_URL}">http://{host}/{PLAYLIST_URL}</a></b></p>
-                <p>EPG URL (Set to refresh every 1 hour): <b><a href="http://{host}/{EPG_URL}">http://{host}/{EPG_URL}</a></b></p>
+                <p>Playlist URL: <b><a href="http://{host}/{PLAYLIST_PATH}">http://{host}/{PLAYLIST_PATH}</a></b></p>
+                <p>EPG URL (Set to refresh every 1 hour): <b><a href="http://{host}/{EPG_PATH}">http://{host}/{EPG_PATH}</a></b></p>
                 <h2>Available regions &amp; groups</h2>
         '''.encode('utf8'))
 
         # Display regions and their group titles with links
         for region, region_data in all_channels.items():
             encoded_region = quote(region)
-            self.wfile.write(f'<h3><a href="http://{host}/{PLAYLIST_URL}?regions={encoded_region}">{region_data["name"]}</a> ({region})</h3><ul>'.encode('utf8'))
+            self.wfile.write(f'<h3><a href="http://{host}/{PLAYLIST_PATH}?regions={encoded_region}">{region_data["name"]}</a> ({region})</h3><ul>'.encode('utf8'))
 
             group_names = set(channel.get('group', None) for channel in region_data.get('channels', {}).values())
             for group in sorted(name for name in group_names if name):
                 encoded_group = quote(group)
-                self.wfile.write(f'<li><a href="http://{host}/{PLAYLIST_URL}?regions={encoded_region}&groups={encoded_group}">{group}</a></li>'.encode('utf8'))
+                self.wfile.write(f'<li><a href="http://{host}/{PLAYLIST_PATH}?regions={encoded_region}&groups={encoded_group}">{group}</a></li>'.encode('utf8'))
             self.wfile.write(b'</ul>')
 
         self.wfile.write(b'</body></html>')
