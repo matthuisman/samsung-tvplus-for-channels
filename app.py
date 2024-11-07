@@ -4,13 +4,15 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
 from urllib.parse import urlparse, parse_qsl, quote, unquote
 import requests
+import gzip
+from io import BytesIO
 
 PORT = 80
 REGION_ALL = 'all'
 CHUNKSIZE = int(os.getenv('CHUNK_SIZE', 64 * 1024))
 
 PLAYLIST_URL = 'playlist.m3u8'
-EPG_URL = 'epg.xml.gz'
+EPG_URL = 'epg.xml'
 STATUS_URL = ''
 APP_URL = 'https://i.mjh.nz/SamsungTVPlus/.app.json'
 
@@ -122,7 +124,22 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(f'#EXTINF:-1 channel-id="{channel_id}" tvg-id="{key}" tvg-logo="{logo}" group-title="{group}"{chno},{name}\n{url}\n'.encode('utf8'))
 
     def _epg(self):
-        self._proxy(f'https://i.mjh.nz/SamsungTVPlus/{REGION_ALL}.xml.gz', content_type='application/gzip')
+        # Download the .gz EPG file
+        resp = requests.get(f'https://i.mjh.nz/SamsungTVPlus/{REGION_ALL}.xml.gz')
+
+        if resp.status_code != 200:
+            self._error("Failed to retrieve EPG file.")
+            return
+
+        # Decompress the .gz content
+        with gzip.GzipFile(fileobj=BytesIO(resp.content)) as gz:
+            xml_content = gz.read()
+
+        # Serve the decompressed XML content
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/xml')
+        self.end_headers()
+        self.wfile.write(xml_content)
 
     def _proxy(self, url, content_type=None):
         resp = requests.get(url)
@@ -157,7 +174,7 @@ class Handler(BaseHTTPRequestHandler):
         # Display regions and their group titles with links
         for region, region_data in all_channels.items():
             encoded_region = quote(region)
-            self.wfile.write(f'<h3><a href="http://{host}/{PLAYLIST_URL}?regions={encoded_region}">{region_data['name']}</a> ({region})</h3><ul>'.encode('utf8'))
+            self.wfile.write(f'<h3><a href="http://{host}/{PLAYLIST_URL}?regions={encoded_region}">{region_data["name"]}</a> ({region})</h3><ul>'.encode('utf8'))
 
             group_names = set(channel.get('group', None) for channel in region_data.get('channels', {}).values())
             for group in sorted(name for name in group_names if name):
