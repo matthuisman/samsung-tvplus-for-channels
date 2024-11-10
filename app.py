@@ -44,7 +44,7 @@ class Handler(BaseHTTPRequestHandler):
         with cls.channel_cache_lock:
             current_time = time()
             if cls.cached_data and (current_time - cls.cache_timestamp) < CHANNEL_CACHE_EXPIRY:
-                print(f"Using Cached version of ${APP_URL}")
+                print(f"Using Cached version of {APP_URL}")
                 return cls.cached_data
             else:
                 print(f"Fetching new data from {APP_URL}")
@@ -181,7 +181,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(b'#EXTM3U\n')
                 for key in sorted(channels.keys(), key=lambda x: channels[x]['chno'] if sort == 'chno' else channels[x]['name'].strip().lower()):
                     # noisy output, but might be good for debugging.
-                    # print(f"processing channel id ${key}")
+                    # print(f"processing channel id {key}")
                     channel = channels[key]
                     logo = channel['logo']
                     group = channel['group']
