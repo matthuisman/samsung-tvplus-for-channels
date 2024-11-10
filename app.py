@@ -11,7 +11,6 @@ from time import time
 
 PORT = 80
 REGION_ALL = 'all'
-CHUNKSIZE = int(os.getenv('CHUNK_SIZE', 64 * 1024))
 
 PLAYLIST_PATH = 'playlist.m3u8'
 EPG_PATH = 'epg.xml'
@@ -236,14 +235,6 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Content-Type', 'application/xml')
         self.end_headers()
         self.wfile.write(epg_data)
-
-    def _proxy(self, url, content_type=None):
-        resp = requests.get(url)
-        self.send_response(resp.status_code)
-        self.send_header('content-type', content_type or resp.headers.get('content-type'))
-        self.end_headers()
-        for chunk in resp.iter_content(CHUNKSIZE):
-            self.wfile.write(chunk)
 
     def _status(self):
         all_channels = self.get_cached_channel_data()
