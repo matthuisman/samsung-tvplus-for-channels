@@ -237,7 +237,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             self.wfile.write(epg_data)
         except BrokenPipeError:
-            print("Client disconnected while sending EPG data:")
+            print("Client disconnected while sending EPG data")
 
     def _status(self):
         all_channels = self.get_cached_channel_data()
