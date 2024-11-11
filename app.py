@@ -29,6 +29,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(500)
         self.end_headers()
         self.wfile.write(f'Error: {message}'.encode('utf8'))
+        print(f"Error Encountered: {message}")
         raise
 
     def do_GET(self):
