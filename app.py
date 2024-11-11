@@ -32,6 +32,9 @@ class Handler(BaseHTTPRequestHandler):
         raise
 
     def do_GET(self):
+
+        print(f"Received request: {self.path}")
+
         # Serve the favicon.ico file
         if self.path == '/favicon.ico':
             self._serve_favicon()
@@ -46,6 +49,7 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         func = parsed.path.split('/')[1]
         self._params = dict(parse_qsl(parsed.query, keep_blank_values=True))
+        print(f"Received request: {parsed}")
 
         if func not in routes:
             self.send_response(404)
@@ -54,6 +58,8 @@ class Handler(BaseHTTPRequestHandler):
 
         try:
             routes[func]()
+        except BrokenPipeError:
+            self._error("Broken Pipe. Client may have disconnected.")
         except Exception as e:
             self._error(e)
 
