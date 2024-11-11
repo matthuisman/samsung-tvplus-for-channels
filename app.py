@@ -50,7 +50,6 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         func = parsed.path.split('/')[1]
         self._params = dict(parse_qsl(parsed.query, keep_blank_values=True))
-        print(f"Received request: {parsed}")
 
         if func not in routes:
             self.send_response(404)
