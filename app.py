@@ -80,10 +80,12 @@ class Handler(BaseHTTPRequestHandler):
             resp = requests.get(APP_URL, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT))
             resp.raise_for_status()
             all_channels = resp.json()['regions']
-        except requests.exceptions.Timeout:
-            self._error(f'Request to {APP_URL} timed  out')
+        except (requests.exceptions.HTTPError,
+                requests.exceptions.ConnectionError,
+                requests.exceptions.Timeout) as err:
+            self._error(f'Request to {APP_URL} failed: {err}')
             return
-        except requests. exceptions. JSONDecodeError:
+        except requests.exceptions.JSONDecodeError:
             self._error(f'Response from {APP_URL} not valid JSON')
             return
 
@@ -162,8 +164,10 @@ class Handler(BaseHTTPRequestHandler):
                     while chunk:
                         self.wfile.write(chunk)
                         chunk = gz.read(1024)
-        except requests.exceptions.Timeout:
-            self._error(f'Request to {APP_URL} timed  out')
+        except (requests.exceptions.HTTPError,
+                requests.exceptions.ConnectionError,
+                requests.exceptions.Timeout) as err:
+            self._error(f'Request to {APP_URL} failed: {err}')
             return
         except BrokenPipeError:
             print("Broken Pipe responding to EPG request. Client may have disconnected before response was returned")
@@ -175,10 +179,12 @@ class Handler(BaseHTTPRequestHandler):
             response = requests.get(APP_URL, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT))
             response.raise_for_status()
             all_channels = response.json()['regions']
-        except requests.exceptions.Timeout:
-            self._error(f'Request to {APP_URL} timed  out')
+        except (requests.exceptions.HTTPError,
+                requests.exceptions.ConnectionError,
+                requests.exceptions.Timeout) as err:
+            self._error(f'Request to {APP_URL} failed: {err}')
             return
-        except requests. exceptions. JSONDecodeError:
+        except requests.exceptions.JSONDecodeError:
             self._error(f'Response from {APP_URL} not valid JSON')
             return
         try:
