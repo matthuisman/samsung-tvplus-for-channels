@@ -58,8 +58,6 @@ class Handler(BaseHTTPRequestHandler):
 
         try:
             routes[func]()
-        except BrokenPipeError:
-            self._error("Broken Pipe. Client may have disconnected.")
         except Exception as e:
             self._error(e)
 
@@ -79,9 +77,9 @@ class Handler(BaseHTTPRequestHandler):
 
         all_channels = None
         try:
-            response = requests.get(APP_URL, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT))
-            response.raise_for_status()
-            all_channels = response.json()['regions']
+            resp = requests.get(APP_URL, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT))
+            resp.raise_for_status()
+            all_channels = resp.json()['regions']
         except requests.exceptions.Timeout:
             self._error(f'Request to {APP_URL} timed  out')
             return
@@ -110,39 +108,42 @@ class Handler(BaseHTTPRequestHandler):
         for region in regions:
             channels.update(all_channels[region].get('channels', {}))
 
-        self.wfile.write(b'#EXTM3U\n')
-        for key in sorted(channels.keys(), key=lambda x: channels[x]['chno'] if sort == 'chno' else channels[x]['name'].strip().lower()):
-            channel = channels[key]
-            logo = channel['logo']
-            group = channel['group']
-            name = channel['name']
-            url = PLAYBACK_URL.format(id=key)
-            channel_id = f'samsung-{key}'
+        try:
+            self.wfile.write(b'#EXTM3U\n')
+            for key in sorted(channels.keys(), key=lambda x: channels[x]['chno'] if sort == 'chno' else channels[x]['name'].strip().lower()):
+                channel = channels[key]
+                logo = channel['logo']
+                group = channel['group']
+                name = channel['name']
+                url = PLAYBACK_URL.format(id=key)
+                channel_id = f'samsung-{key}'
 
-            # Skip channels that require a license
-            if channel.get('license_url'):
-                continue
+                # Skip channels that require a license
+                if channel.get('license_url'):
+                    continue
 
-            # Apply include/exclude filters
-            if (include and channel_id not in include) or (exclude and channel_id in exclude):
-                print(f"Skipping {channel_id} due to include / exclude")
-                continue
+                # Apply include/exclude filters
+                if (include and channel_id not in include) or (exclude and channel_id in exclude):
+                    print(f"Skipping {channel_id} due to include / exclude")
+                    continue
 
-            # Apply group filter
-            if groups and group.lower() not in groups:
-                print(f"Skipping {channel_id} due to group filter")
-                continue
+                # Apply group filter
+                if groups and group.lower() not in groups:
+                    print(f"Skipping {channel_id} due to group filter")
+                    continue
 
-            chno = ''
-            if start_chno is not None:
-                if start_chno > 0:
-                    chno = f' tvg-chno="{start_chno}"'
-                    start_chno += 1
-            elif channel.get('chno') is not None:
-                chno = ' tvg-chno="{}"'.format(channel['chno'])
+                chno = ''
+                if start_chno is not None:
+                    if start_chno > 0:
+                        chno = f' tvg-chno="{start_chno}"'
+                        start_chno += 1
+                elif channel.get('chno') is not None:
+                    chno = ' tvg-chno="{}"'.format(channel['chno'])
 
-            # Write channel information
-            self.wfile.write(f'#EXTINF:-1 channel-id="{channel_id}" tvg-id="{key}" tvg-logo="{logo}" group-title="{group}"{chno},{name}\n{url}\n'.encode('utf8'))
+                # Write channel information
+                self.wfile.write(f'#EXTINF:-1 channel-id="{channel_id}" tvg-id="{key}" tvg-logo="{logo}" group-title="{group}"{chno},{name}\n{url}\n'.encode('utf8'))
+        except BrokenPipeError:
+                print("Broken Pipe responding to playlist request. Client may have disconnected before response was returned")
 
     def _epg(self):
 
@@ -164,6 +165,8 @@ class Handler(BaseHTTPRequestHandler):
         except requests.exceptions.Timeout:
             self._error(f'Request to {APP_URL} timed  out')
             return
+        except BrokenPipeError:
+            print("Broken Pipe responding to EPG request. Client may have disconnected before response was returned")
 
 
     def _status(self):
@@ -178,39 +181,40 @@ class Handler(BaseHTTPRequestHandler):
         except requests. exceptions. JSONDecodeError:
             self._error(f'Response from {APP_URL} not valid JSON')
             return
+        try:
+            # Generate HTML content with the favicon link
+            self.send_response(200)
+            self.send_header("Content-type", "text/html; charset=utf-8")
+            self.end_headers()
 
-        # Generate HTML content with the favicon link
-        self.send_response(200)
-        self.send_header("Content-type", "text/html; charset=utf-8")
-        self.end_headers()
+            host = self.headers.get('Host')
+            self.wfile.write(f'''
+                <html>
+                <head>
+                    <title>Samsung TV Plus for Channels</title>
+                    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+                </head>
+                <body>
+                    <h1>Samsung TV Plus for Channels</h1>
+                    <p>Playlist URL: <b><a href="http://{host}/{PLAYLIST_PATH}">http://{host}/{PLAYLIST_PATH}</a></b></p>
+                    <p>EPG URL (Set to refresh every 1 hour): <b><a href="http://{host}/{EPG_PATH}">http://{host}/{EPG_PATH}</a></b></p>
+                    <h2>Available regions &amp; groups</h2>
+            '''.encode('utf8'))
 
-        host = self.headers.get('Host')
-        self.wfile.write(f'''
-            <html>
-            <head>
-                <title>Samsung TV Plus for Channels</title>
-                <link rel="icon" href="/favicon.ico" type="image/x-icon">
-            </head>
-            <body>
-                <h1>Samsung TV Plus for Channels</h1>
-                <p>Playlist URL: <b><a href="http://{host}/{PLAYLIST_PATH}">http://{host}/{PLAYLIST_PATH}</a></b></p>
-                <p>EPG URL (Set to refresh every 1 hour): <b><a href="http://{host}/{EPG_PATH}">http://{host}/{EPG_PATH}</a></b></p>
-                <h2>Available regions &amp; groups</h2>
-        '''.encode('utf8'))
+            # Display regions and their group titles with links
+            for region, region_data in all_channels.items():
+                encoded_region = quote(region)
+                self.wfile.write(f'<h3><a href="http://{host}/{PLAYLIST_PATH}?regions={encoded_region}">{region_data["name"]}</a> ({region})</h3><ul>'.encode('utf8'))
 
-        # Display regions and their group titles with links
-        for region, region_data in all_channels.items():
-            encoded_region = quote(region)
-            self.wfile.write(f'<h3><a href="http://{host}/{PLAYLIST_PATH}?regions={encoded_region}">{region_data["name"]}</a> ({region})</h3><ul>'.encode('utf8'))
+                group_names = set(channel.get('group', None) for channel in region_data.get('channels', {}).values())
+                for group in sorted(name for name in group_names if name):
+                    encoded_group = quote(group)
+                    self.wfile.write(f'<li><a href="http://{host}/{PLAYLIST_PATH}?regions={encoded_region}&groups={encoded_group}">{group}</a></li>'.encode('utf8'))
+                self.wfile.write(b'</ul>')
 
-            group_names = set(channel.get('group', None) for channel in region_data.get('channels', {}).values())
-            for group in sorted(name for name in group_names if name):
-                encoded_group = quote(group)
-                self.wfile.write(f'<li><a href="http://{host}/{PLAYLIST_PATH}?regions={encoded_region}&groups={encoded_group}">{group}</a></li>'.encode('utf8'))
-            self.wfile.write(b'</ul>')
-
-        self.wfile.write(b'</body></html>')
-
+            self.wfile.write(b'</body></html>')
+        except BrokenPipeError:
+            print("Broken Pipe responding to status page. Client may have disconnected before response was returned")
 
 class ThreadingSimpleServer(ThreadingMixIn, HTTPServer):
     pass
