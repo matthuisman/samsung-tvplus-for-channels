@@ -16,6 +16,8 @@ STATUS_PATH = ''
 APP_URL = 'https://i.mjh.nz/SamsungTVPlus/.channels.json'
 EPG_URL = f'https://i.mjh.nz/SamsungTVPlus/{REGION_ALL}.xml.gz'
 PLAYBACK_URL = 'https://jmp2.uk/sam-{id}.m3u8'
+CONNECT_TIMEOUT = 5 # timeout for upstream requests
+READ_TIMEOUT = 20 # timeout for upstream requests
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -68,7 +70,19 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
 
     def _playlist(self):
-        all_channels = requests.get(APP_URL).json()['regions']
+
+        all_channels = None
+        try:
+            response = requests.get(APP_URL, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT))
+            response.raise_for_status()
+            all_channels = response.json()['regions']
+        except requests.exceptions.Timeout:
+            self._error(f'Request to {APP_URL} timed  out')
+            return
+        except requests. exceptions. JSONDecodeError:
+            self._error(f'Response from {APP_URL} not valid JSON')
+            return
+
 
         # Retrieve filters from URL or fallback to environment variables
         regions = [region.strip().lower() for region in (self._params.get('regions') or os.getenv('REGIONS', REGION_ALL)).split(',')]
@@ -125,23 +139,39 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(f'#EXTINF:-1 channel-id="{channel_id}" tvg-id="{key}" tvg-logo="{logo}" group-title="{group}"{chno},{name}\n{url}\n'.encode('utf8'))
 
     def _epg(self):
+
         # Download the .gz EPG file
-        with requests.get(EPG_URL, stream=True) as resp:
-            resp.raise_for_status()
+        try:
+            with requests.get(EPG_URL, stream=True, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)) as resp:
+                resp.raise_for_status()
 
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/xml')
-            self.end_headers()
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/xml')
+                self.end_headers()
 
-            # Decompress the .gz content
-            with gzip.GzipFile(fileobj=BytesIO(resp.content)) as gz:
-                chunk = gz.read(1024)
-                while chunk:
-                    self.wfile.write(chunk)
+                # Decompress the .gz content
+                with gzip.GzipFile(fileobj=BytesIO(resp.content)) as gz:
                     chunk = gz.read(1024)
+                    while chunk:
+                        self.wfile.write(chunk)
+                        chunk = gz.read(1024)
+        except requests.exceptions.Timeout:
+            self._error(f'Request to {APP_URL} timed  out')
+            return
+
 
     def _status(self):
-        all_channels = requests.get(APP_URL).json()['regions']
+        all_channels = None
+        try:
+            response = requests.get(APP_URL, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT))
+            response.raise_for_status()
+            all_channels = response.json()['regions']
+        except requests.exceptions.Timeout:
+            self._error(f'Request to {APP_URL} timed  out')
+            return
+        except requests. exceptions. JSONDecodeError:
+            self._error(f'Response from {APP_URL} not valid JSON')
+            return
 
         # Generate HTML content with the favicon link
         self.send_response(200)
