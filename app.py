@@ -177,7 +177,6 @@ class Handler(BaseHTTPRequestHandler):
     def _status(self):
         all_channels = None
         try:
-            raise requests.exceptions.Timeout("Testing Timeout")
             response = requests.get(APP_URL, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT))
             response.raise_for_status()
             all_channels = response.json()['regions']
