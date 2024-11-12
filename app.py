@@ -1,11 +1,14 @@
 #!/usr/bin/python3
 import os
+import json
+import gzip
+from io import BytesIO
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
 from urllib.parse import urlparse, parse_qsl, quote, unquote
+
 import requests
-import gzip
-from io import BytesIO
+
 
 PORT = 80
 REGION_ALL = 'all'
@@ -13,9 +16,10 @@ REGION_ALL = 'all'
 PLAYLIST_PATH = 'playlist.m3u8'
 EPG_PATH = 'epg.xml'
 STATUS_PATH = ''
-APP_URL = 'https://i.mjh.nz/SamsungTVPlus/.channels.json'
-EPG_URL = f'https://i.mjh.nz/SamsungTVPlus/{REGION_ALL}.xml.gz'
+APP_URL = 'https://i.mjh.nz/SamsungTVPlus/.channels.json.gz'
+EPG_URL = 'https://i.mjh.nz/SamsungTVPlus/{region}.xml.gz'
 PLAYBACK_URL = 'https://jmp2.uk/sam-{id}.m3u8'
+TIMEOUT = (5,20) #connect,read
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -67,8 +71,15 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
 
+    def _app_data(self):
+        self.log_message(f"Downloading {APP_URL}...")
+        resp = requests.get(APP_URL, stream=True, timeout=TIMEOUT)
+        resp.raise_for_status()
+        json_text = gzip.GzipFile(fileobj=BytesIO(resp.content)).read()
+        return json.loads(json_text)['regions']
+
     def _playlist(self):
-        all_channels = requests.get(APP_URL).json()['regions']
+        all_channels = self._app_data()
 
         # Retrieve filters from URL or fallback to environment variables
         regions = [region.strip().lower() for region in (self._params.get('regions') or os.getenv('REGIONS', REGION_ALL)).split(',')]
@@ -125,8 +136,13 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(f'#EXTINF:-1 channel-id="{channel_id}" tvg-id="{key}" tvg-logo="{logo}" group-title="{group}"{chno},{name}\n{url}\n'.encode('utf8'))
 
     def _epg(self):
+        regions = (self._params.get('regions') or os.getenv('REGIONS', REGION_ALL)).split(',')
+        region = regions[0] if len(regions) == 1 else REGION_ALL
+        url = EPG_URL.format(region=region)
+        self.log_message(f"Downloading {url}...")
+
         # Download the .gz EPG file
-        with requests.get(EPG_URL, stream=True) as resp:
+        with requests.get(url, stream=True, timeout=TIMEOUT) as resp:
             resp.raise_for_status()
 
             self.send_response(200)
@@ -141,8 +157,6 @@ class Handler(BaseHTTPRequestHandler):
                     chunk = gz.read(1024)
 
     def _status(self):
-        all_channels = requests.get(APP_URL).json()['regions']
-
         # Generate HTML content with the favicon link
         self.send_response(200)
         self.send_header("Content-type", "text/html; charset=utf-8")
@@ -156,16 +170,18 @@ class Handler(BaseHTTPRequestHandler):
                 <link rel="icon" href="/favicon.ico" type="image/x-icon">
             </head>
             <body>
-                <h1>Samsung TV Plus for Channels</h1>
-                <p>Playlist URL: <b><a href="http://{host}/{PLAYLIST_PATH}">http://{host}/{PLAYLIST_PATH}</a></b></p>
-                <p>EPG URL (Set to refresh every 1 hour): <b><a href="http://{host}/{EPG_PATH}">http://{host}/{EPG_PATH}</a></b></p>
-                <h2>Available regions &amp; groups</h2>
+                <h1>Regions &amp; Groups</h1>
+                <h2>All</h2>
+                Playlist URL: <b><a href="http://{host}/{PLAYLIST_PATH}">http://{host}/{PLAYLIST_PATH}</a></b><br>
+                EPG URL (Set to refresh once per hour): <b><a href="http://{host}/{EPG_PATH}">http://{host}/{EPG_PATH}</a></b>
         '''.encode('utf8'))
 
         # Display regions and their group titles with links
-        for region, region_data in all_channels.items():
+        for region, region_data in self._app_data().items():
             encoded_region = quote(region)
-            self.wfile.write(f'<h3><a href="http://{host}/{PLAYLIST_PATH}?regions={encoded_region}">{region_data["name"]}</a> ({region})</h3><ul>'.encode('utf8'))
+            self.wfile.write(f'''<h2>{region_data["name"]}</h2>
+                             Playlist URL: <b><a href="http://{host}/{PLAYLIST_PATH}?regions={encoded_region}">http://{host}/{PLAYLIST_PATH}?regions={encoded_region}</a></b><br>
+                             EPG URL (Set to refresh once per hour): <b><a href="http://{host}/{EPG_PATH}?regions={encoded_region}">http://{host}/{EPG_PATH}?regions={encoded_region}</a></b><br><ul>'''.encode('utf8'))
 
             group_names = set(channel.get('group', None) for channel in region_data.get('channels', {}).values())
             for group in sorted(name for name in group_names if name):
