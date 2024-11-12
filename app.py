@@ -16,8 +16,8 @@ STATUS_PATH = ''
 APP_URL = 'https://i.mjh.nz/SamsungTVPlus/.channels.json'
 EPG_URL = f'https://i.mjh.nz/SamsungTVPlus/{REGION_ALL}.xml.gz'
 PLAYBACK_URL = 'https://jmp2.uk/sam-{id}.m3u8'
-CONNECT_TIMEOUT = 5 # timeout for upstream requests
-READ_TIMEOUT = 20 # timeout for upstream requests
+CONNECT_TIMEOUT = 5  # timeout for upstream requests
+READ_TIMEOUT = 20  # timeout for upstream requests
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -74,21 +74,9 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
 
     def _playlist(self):
-
-        all_channels = None
-        try:
-            resp = requests.get(APP_URL, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT))
-            resp.raise_for_status()
-            all_channels = resp.json()['regions']
-        except (requests.exceptions.HTTPError,
-                requests.exceptions.ConnectionError,
-                requests.exceptions.Timeout) as err:
-            self._error(f'Request to {APP_URL} failed: {err}')
+        all_channels = self._load_channels()
+        if all_channels is None:
             return
-        except requests.exceptions.JSONDecodeError:
-            self._error(f'Response from {APP_URL} not valid JSON')
-            return
-
 
         # Retrieve filters from URL or fallback to environment variables
         regions = [region.strip().lower() for region in (self._params.get('regions') or os.getenv('REGIONS', REGION_ALL)).split(',')]
@@ -145,7 +133,7 @@ class Handler(BaseHTTPRequestHandler):
                 # Write channel information
                 self.wfile.write(f'#EXTINF:-1 channel-id="{channel_id}" tvg-id="{key}" tvg-logo="{logo}" group-title="{group}"{chno},{name}\n{url}\n'.encode('utf8'))
         except BrokenPipeError:
-                print("Broken Pipe responding to playlist request. Client may have disconnected before response was returned")
+            print("Broken Pipe responding to playlist request. Client may have disconnected before response was returned")
 
     def _epg(self):
 
@@ -172,21 +160,25 @@ class Handler(BaseHTTPRequestHandler):
         except BrokenPipeError:
             print("Broken Pipe responding to EPG request. Client may have disconnected before response was returned")
 
-
-    def _status(self):
-        all_channels = None
+    def _load_channels(self):
         try:
-            response = requests.get(APP_URL, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT))
-            response.raise_for_status()
-            all_channels = response.json()['regions']
+            resp = requests.get(APP_URL, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT))
+            resp.raise_for_status()
+            return resp.json()['regions']
         except (requests.exceptions.HTTPError,
                 requests.exceptions.ConnectionError,
                 requests.exceptions.Timeout) as err:
             self._error(f'Request to {APP_URL} failed: {err}')
-            return
+            return None
         except requests.exceptions.JSONDecodeError:
             self._error(f'Response from {APP_URL} not valid JSON')
+            return None
+
+    def _status(self):
+        all_channels = self._load_channels()
+        if all_channels is None:
             return
+
         try:
             # Generate HTML content with the favicon link
             self.send_response(200)
