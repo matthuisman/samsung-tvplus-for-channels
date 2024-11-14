@@ -2,12 +2,15 @@
 import os
 import json
 import gzip
+from base64 import b64encode
 from io import BytesIO
+from tempfile import gettempdir
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
 from urllib.parse import urlparse, parse_qsl, quote, unquote
 
 import requests
+from cachelib import SimpleCache
 
 
 PORT = 80
@@ -15,11 +18,19 @@ REGION_ALL = 'all'
 
 PLAYLIST_PATH = 'playlist.m3u8'
 EPG_PATH = 'epg.xml'
+CLEAR_CACHE_PATH = 'clear_cache'
 STATUS_PATH = ''
 APP_URL = 'https://i.mjh.nz/SamsungTVPlus/.channels.json.gz'
 EPG_URL = 'https://i.mjh.nz/SamsungTVPlus/{region}.xml.gz'
 PLAYBACK_URL = 'https://jmp2.uk/sam-{id}.m3u8'
 TIMEOUT = (5,20) #connect,read
+CACHE_TIME = os.getenv("CACHE_TIME", 300) # default of 5mins
+CHUNKSIZE = 1024
+
+CACHE_DIR = os.path.join(gettempdir(), 'samsung-tvplus-for-channels')
+os.makedirs(CACHE_DIR, exist_ok=True)
+print(f"Cache dir: {CACHE_DIR}")
+cache = SimpleCache()
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -43,6 +54,7 @@ class Handler(BaseHTTPRequestHandler):
             PLAYLIST_PATH: self._playlist,
             EPG_PATH: self._epg,
             STATUS_PATH: self._status,
+            CLEAR_CACHE_PATH: self._clear_cache,
         }
 
         parsed = urlparse(self.path)
@@ -59,6 +71,13 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as e:
             self._error(e)
 
+    def _clear_cache(self):
+        cache.clear()
+        self.send_response(200)
+        self.send_header("Content-type", "text/html; charset=utf-8")
+        self.end_headers()
+        self.wfile.write(b'Cache cleared')
+
     def _serve_favicon(self):
         # Serve the favicon file as an ICO file
         try:
@@ -72,11 +91,22 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
 
     def _app_data(self):
+        cache_path = cache.get(APP_URL)
+        if cache_path and os.path.exists(cache_path):
+            self.log_message(f"Cache hit: {APP_URL}")
+            with open(cache_path, 'r') as f:
+                return json.load(f)
+
+        cache_path = os.path.join(CACHE_DIR, b64encode(APP_URL.encode()).decode())
         self.log_message(f"Downloading {APP_URL}...")
         resp = requests.get(APP_URL, stream=True, timeout=TIMEOUT)
         resp.raise_for_status()
         json_text = gzip.GzipFile(fileobj=BytesIO(resp.content)).read()
-        return json.loads(json_text)['regions']
+        data = json.loads(json_text)['regions']
+        with open(cache_path, 'w') as f:
+            json.dump(data, f)
+        cache.set(APP_URL, cache_path, timeout=CACHE_TIME)
+        return data
 
     def _playlist(self):
         all_channels = self._app_data()
@@ -97,7 +127,7 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
         channels = {}
-        print(f"Including channels from regions: {regions}")
+        self.log_message(f"Including channels from regions: {regions}")
         for region in regions:
             channels.update(all_channels[region].get('channels', {}))
 
@@ -116,12 +146,12 @@ class Handler(BaseHTTPRequestHandler):
 
             # Apply include/exclude filters
             if (include and channel_id not in include) or (exclude and channel_id in exclude):
-                print(f"Skipping {channel_id} due to include / exclude")
+                self.log_message(f"Skipping {channel_id} due to include / exclude")
                 continue
 
             # Apply group filter
             if groups and group.lower() not in groups:
-                print(f"Skipping {channel_id} due to group filter")
+                self.log_message(f"Skipping {channel_id} due to group filter")
                 continue
 
             chno = ''
@@ -139,22 +169,39 @@ class Handler(BaseHTTPRequestHandler):
         regions = (self._params.get('regions') or os.getenv('REGIONS', REGION_ALL)).split(',')
         region = regions[0] if len(regions) == 1 else REGION_ALL
         url = EPG_URL.format(region=region)
-        self.log_message(f"Downloading {url}...")
 
-        # Download the .gz EPG file
-        with requests.get(url, stream=True, timeout=TIMEOUT) as resp:
-            resp.raise_for_status()
-
+        cache_path = cache.get(url)
+        if cache_path and os.path.exists(cache_path):
+            self.log_message(f"Cache hit: {url}...")
             self.send_response(200)
             self.send_header('Content-Type', 'application/xml')
             self.end_headers()
-
-            # Decompress the .gz content
-            with gzip.GzipFile(fileobj=BytesIO(resp.content)) as gz:
-                chunk = gz.read(1024)
+            with open(cache_path, 'rb') as f:
+                chunk = f.read(CHUNKSIZE)
                 while chunk:
                     self.wfile.write(chunk)
-                    chunk = gz.read(1024)
+                    chunk = f.read(CHUNKSIZE)
+            return
+
+        self.log_message(f"Downloading {url}...")
+        cache_path = os.path.join(CACHE_DIR, b64encode(url.encode()).decode())
+        # Download the .gz EPG file
+        with open(cache_path, 'wb') as cache_f:
+            with requests.get(url, stream=True, timeout=TIMEOUT) as resp:
+                resp.raise_for_status()
+
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/xml')
+                self.end_headers()
+
+                # Decompress the .gz content
+                with gzip.GzipFile(fileobj=BytesIO(resp.content)) as gz:
+                    chunk = gz.read(CHUNKSIZE)
+                    while chunk:
+                        cache_f.write(chunk)
+                        self.wfile.write(chunk)
+                        chunk = gz.read(CHUNKSIZE)
+        cache.set(url, cache_path, timeout=CACHE_TIME)
 
     def _status(self):
         # Generate HTML content with the favicon link
