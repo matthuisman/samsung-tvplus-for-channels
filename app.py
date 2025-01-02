@@ -2,6 +2,7 @@
 import os
 import json
 import gzip
+import argparse
 from base64 import b64encode
 from io import BytesIO
 from tempfile import gettempdir
@@ -13,9 +14,7 @@ import requests
 from cachelib import SimpleCache
 
 
-PORT = 80
 REGION_ALL = 'all'
-
 PLAYLIST_PATH = 'playlist.m3u8'
 EPG_PATH = 'epg.xml'
 CLEAR_CACHE_PATH = 'clear_cache'
@@ -244,7 +243,16 @@ class ThreadingSimpleServer(ThreadingMixIn, HTTPServer):
 
 
 def run():
-    server = ThreadingSimpleServer(('0.0.0.0', PORT), Handler)
+    if os.getenv('IS_DOCKER'):
+        PORT = 80
+    else:
+        parser = argparse.ArgumentParser(description="Samsung TV Plus for Channels")
+        parser.add_argument("-port", "--PORT", default=80, help="Port number for server to use (optional)")
+        args = parser.parse_args()
+        PORT = args.PORT
+
+    print(f"Starting server on port {PORT}")
+    server = ThreadingSimpleServer(('0.0.0.0', int(PORT)), Handler)
     server.serve_forever()
 
 
