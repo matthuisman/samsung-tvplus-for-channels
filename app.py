@@ -22,6 +22,7 @@ STATUS_PATH = ''
 APP_URL = 'https://i.mjh.nz/SamsungTVPlus/.channels.json.gz'
 EPG_URL = 'https://i.mjh.nz/SamsungTVPlus/{region}.xml.gz'
 PLAYBACK_URL = 'https://jmp2.uk/sam-{id}.m3u8'
+DELIMITER = '|'
 TIMEOUT = (5,20) #connect,read
 CACHE_TIME = os.getenv("CACHE_TIME", 300) # default of 5mins
 CHUNKSIZE = 1024
@@ -111,22 +112,22 @@ class Handler(BaseHTTPRequestHandler):
         all_channels = self._app_data()
 
         # Retrieve filters from URL or fallback to environment variables
-        regions = [region.strip().lower() for region in (self._params.get('regions') or os.getenv('REGIONS', REGION_ALL)).split(',')]
+        regions = [region.strip().lower() for region in (self._params.get('regions') or os.getenv('REGIONS', REGION_ALL)).split(DELIMITER)]
         regions = [region for region in all_channels.keys() if region.lower() in regions or REGION_ALL in regions]
-        groups = [unquote(group).lower() for group in (self._params.get('groups') or os.getenv('GROUPS', '')).split(',')]
+        groups = [unquote(group).lower() for group in (self._params.get('groups') or os.getenv('GROUPS', '')).split(DELIMITER)]
         groups = [group for group in groups if group]
 
         start_chno = int(self._params['start_chno']) if 'start_chno' in self._params else None
         sort = self._params.get('sort', 'chno')
-        include = [x for x in self._params.get('include', '').split(',') if x]
-        exclude = [x for x in self._params.get('exclude', '').split(',') if x]
+        include = [x for x in self._params.get('include', '').split(DELIMITER) if x]
+        exclude = [x for x in self._params.get('exclude', '').split(DELIMITER) if x]
 
         self.send_response(200)
         self.send_header('content-type', 'vnd.apple.mpegurl')
         self.end_headers()
 
         channels = {}
-        self.log_message(f"Including channels from regions: {regions}")
+        self.log_message(f"Including channels from regions: {regions} in groups: {groups}")
         for region in regions:
             channels.update(all_channels[region].get('channels', {}))
 
@@ -145,12 +146,10 @@ class Handler(BaseHTTPRequestHandler):
 
             # Apply include/exclude filters
             if (include and channel_id not in include) or (exclude and channel_id in exclude):
-                self.log_message(f"Skipping {channel_id} due to include / exclude")
                 continue
 
             # Apply group filter
             if groups and group.lower() not in groups:
-                self.log_message(f"Skipping {channel_id} due to group filter")
                 continue
 
             chno = ''
@@ -165,7 +164,7 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(f'#EXTINF:-1 channel-id="{channel_id}" tvg-id="{key}" tvg-logo="{logo}" group-title="{group}"{chno},{name}\n{url}\n'.encode('utf8'))
 
     def _epg(self):
-        regions = (self._params.get('regions') or os.getenv('REGIONS', REGION_ALL)).split(',')
+        regions = (self._params.get('regions') or os.getenv('REGIONS', REGION_ALL)).split(DELIMITER)
         region = regions[0] if len(regions) == 1 else REGION_ALL
         url = EPG_URL.format(region=region)
 
