@@ -2,7 +2,7 @@ services:
   samsung-tvplus:
     container_name: samsung-tvplus
     environment:
-      - REGIONS=at,ca,ch,de,es,fr,gb,in,it,kr,us
+      - REGIONS=at|ca|ch|de|es|fr|gb|in|it|kr|us
       - TZ=Pacific/Auckland
     image: matthuisman/samsung-tvplus-for-channels
     ports:
