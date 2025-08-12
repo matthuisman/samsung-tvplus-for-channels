@@ -21,7 +21,7 @@ CLEAR_CACHE_PATH = 'clear_cache'
 STATUS_PATH = ''
 APP_URL = 'https://i.mjh.nz/SamsungTVPlus/.channels.json.gz'
 EPG_URL = 'https://i.mjh.nz/SamsungTVPlus/{region}.xml.gz'
-PLAYBACK_URL = 'https://jmp2.uk/sam-{id}.m3u8'
+PLAYBACK_URL = 'https://jmp2.uk/{slug}'
 DELIMITER = '|'
 TIMEOUT = (5,20) #connect,read
 CACHE_TIME = os.getenv("CACHE_TIME", 300) # default of 5mins
@@ -102,18 +102,18 @@ class Handler(BaseHTTPRequestHandler):
         resp = requests.get(APP_URL, stream=True, timeout=TIMEOUT)
         resp.raise_for_status()
         json_text = gzip.GzipFile(fileobj=BytesIO(resp.content)).read()
-        data = json.loads(json_text)['regions']
+        data = json.loads(json_text)
         with open(cache_path, 'w') as f:
             json.dump(data, f)
         cache.set(APP_URL, cache_path, timeout=CACHE_TIME)
         return data
 
     def _playlist(self):
-        all_channels = self._app_data()
+        data = self._app_data()
 
         # Retrieve filters from URL or fallback to environment variables
         regions = [region.strip().lower() for region in (self._params.get('regions') or os.getenv('REGIONS', REGION_ALL)).split(DELIMITER)]
-        regions = [region for region in all_channels.keys() if region.lower() in regions or REGION_ALL in regions]
+        regions = [region for region in data['regions'].keys() if region.lower() in regions or REGION_ALL in regions]
         groups = [unquote(group).lower() for group in (self._params.get('groups') or os.getenv('GROUPS', '')).split(DELIMITER)]
         groups = [group for group in groups if group]
 
@@ -129,7 +129,7 @@ class Handler(BaseHTTPRequestHandler):
         channels = {}
         self.log_message(f"Including channels from regions: {regions} in groups: {groups}")
         for region in regions:
-            channels.update(all_channels[region].get('channels', {}))
+            channels.update(data['regions'][region].get('channels', {}))
 
         self.wfile.write(b'#EXTM3U\n')
         for key in sorted(channels.keys(), key=lambda x: channels[x]['chno'] if sort == 'chno' else channels[x]['name'].strip().lower()):
@@ -137,7 +137,7 @@ class Handler(BaseHTTPRequestHandler):
             logo = channel['logo']
             group = channel['group']
             name = channel['name']
-            url = PLAYBACK_URL.format(id=key)
+            url = PLAYBACK_URL.format(slug=data['slug'].format(id=key))
             channel_id = f'samsung-{key}'
 
             # Skip channels that require a license
@@ -222,7 +222,7 @@ class Handler(BaseHTTPRequestHandler):
         '''.encode('utf8'))
 
         # Display regions and their group titles with links
-        for region, region_data in self._app_data().items():
+        for region, region_data in self._app_data()['regions'].items():
             encoded_region = quote(region)
             self.wfile.write(f'''<h2>{region_data["name"]}</h2>
                              Playlist URL: <b><a href="http://{host}/{PLAYLIST_PATH}?regions={encoded_region}">http://{host}/{PLAYLIST_PATH}?regions={encoded_region}</a></b><br>
