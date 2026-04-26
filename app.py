@@ -243,10 +243,10 @@ class ThreadingSimpleServer(ThreadingMixIn, HTTPServer):
 
 def run():
     if os.getenv('IS_DOCKER'):
-        PORT = int(os.getenv('PORT', 8182))
+        PORT = int(os.getenv('PORT', 80))
     else:
         parser = argparse.ArgumentParser(description="Samsung TV Plus for Channels")
-        parser.add_argument("-port", "--PORT", default=8182, help="Port number for server to use (optional)")
+        parser.add_argument("-port", "--PORT", default=80, help="Port number for server to use (optional)")
         args = parser.parse_args()
         PORT = args.PORT
 
