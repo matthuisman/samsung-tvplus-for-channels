@@ -7,8 +7,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-EXPOSE 80/tcp
-
 ENV IS_DOCKER=1
 
 CMD [ "python", "-u", "./app.py" ]
